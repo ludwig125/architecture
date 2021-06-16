@@ -127,7 +127,7 @@ mysql>
 ```
 INSERT INTO actor(name, age) VALUES("Johannsen", 30);
 INSERT INTO actor(name, age) values("Williams", 53);
-INSERT INTO actor(name, age) values("Streep", 46);
+INSERT INTO actor(name, age) values("Streep", 65);
 ```
 
 #### 後で削除するときはDROPで

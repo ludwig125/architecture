@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -57,7 +58,7 @@ func (r *sqliteRepository) GetAll() ([]Actor, error) {
 	return actors, nil
 }
 
-func (r *sqliteRepository) SearchByID(id int) ([]Actor, error) {
+func (r *sqliteRepository) FindByID(id int) ([]Actor, error) {
 	rows, err := r.db.Query("SELECT * FROM actor WHERE id = ?", id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query: %v", err)
@@ -65,7 +66,7 @@ func (r *sqliteRepository) SearchByID(id int) ([]Actor, error) {
 	return scanActors(rows)
 }
 
-func (r *sqliteRepository) SearchByName(name string) ([]Actor, error) {
+func (r *sqliteRepository) FindByName(name string) ([]Actor, error) {
 	rows, err := r.db.Query("SELECT * FROM actor WHERE name = ?", name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query: %v", err)
@@ -73,7 +74,7 @@ func (r *sqliteRepository) SearchByName(name string) ([]Actor, error) {
 	return scanActors(rows)
 }
 
-func (r *sqliteRepository) SearchByAge(age int) ([]Actor, error) {
+func (r *sqliteRepository) FindByAge(age int) ([]Actor, error) {
 	rows, err := r.db.Query("SELECT * FROM actor WHERE age = ?", age)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query: %v", err)
@@ -100,17 +101,37 @@ func scanActors(rows *sql.Rows) ([]Actor, error) {
 }
 
 func (r *sqliteRepository) Update(a Actor) error {
+
 	q := "INSERT OR REPLACE INTO actor(name, age) VALUES($1, $2);"
-	if _, err := r.db.Exec(q, a.Name, a.Age); err != nil {
+	res, err := r.db.Exec(q, a.Name, a.Age)
+	if err != nil {
 		return fmt.Errorf("failed to update db: %v", err)
+	}
+	// コマンドで影響を受けた件数が０ならエラーとする
+	row, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get RowsAffected: %v", err)
+	}
+	if row == 0 {
+		return errors.New("no row got affected")
 	}
 	return nil
 }
 
 func (r *sqliteRepository) DeleteByID(id int) error {
 	q := "DELETE FROM actor WHERE id = $1;"
-	if _, err := r.db.Exec(q, id); err != nil {
+	res, err := r.db.Exec(q, id)
+	if err != nil {
 		return fmt.Errorf("failed to delete from db: %v", err)
+	}
+
+	// コマンドで影響を受けた件数が０ならエラーとする
+	row, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get RowsAffected: %v", err)
+	}
+	if row == 0 {
+		return errors.New("no row got affected")
 	}
 	return nil
 }

@@ -37,7 +37,7 @@ func main() {
 	// if err := repository.DeleteByID(4); err != nil {
 	// 	log.Panic(err)
 	// // }
-	// ps, err := repository.SearchByAge(56)
+	// ps, err := repository.FindByAge(56)
 	// // ps, err := repository.GetAll()
 	// if err != nil {
 	// 	log.Panic(err)
@@ -49,9 +49,14 @@ func main() {
 	// fmt.Println(string(jsonData))
 	// os.Exit(0)
 
+	exRepository, err := NewExcludeRepository("exclude_actors.txt")
+	if err != nil {
+		log.Panicf("failed to NewExcludeRepository: %v", err)
+	}
+
 	config := Config{Port: "8080"}
 
-	service := NewActorService(config, repository)
+	service := NewActorService(config, repository, exRepository)
 
 	server := NewServer(config, service)
 	server.Run()

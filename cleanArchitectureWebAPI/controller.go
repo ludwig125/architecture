@@ -27,36 +27,40 @@ func (s *Server) GetALlHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	responseActorByJSON(ps, w, r)
+	responseActorByJSON(ps, w)
 }
 
-func (s *Server) SearchHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) FindHandler(w http.ResponseWriter, r *http.Request) {
 	cond, err := NewRequestCond(r.URL.Query().Get("id"),
 		r.URL.Query().Get("name"),
 		r.URL.Query().Get("age"))
 	if err != nil {
-		log.Println("failed to NewRequestCond", err)
+		e := fmt.Sprintf("failed to NewRequestCond: %v", err)
+		log.Println(e)
 		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, e, http.StatusInternalServerError)
 		return
 	}
 
-	ps, err := s.Service.Search(*cond)
+	ps, err := s.Service.Find(*cond)
 	if err != nil {
-		log.Println("failed to Search", err)
+		e := fmt.Sprintf("failed to Find: %v", err)
+		log.Println(e)
 		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, e, http.StatusInternalServerError)
 		return
 	}
-	responseActorByJSON(ps, w, r)
+	responseActorByJSON(ps, w)
 }
 
 func (s *Server) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		w.WriteHeader(http.StatusBadRequest)
+		e := fmt.Sprintf("invalid method %s, request must be POST", r.Method)
+		http.Error(w, e, http.StatusBadRequest)
 		return
 	}
 
 	if r.Header.Get("Content-Type") != "application/json" {
-		w.WriteHeader(http.StatusBadRequest)
 		http.Error(w, "POST request must be JSON", http.StatusBadRequest)
 		return
 	}
@@ -81,22 +85,34 @@ func (s *Server) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 			msg := "Request body must not be empty"
 			http.Error(w, msg, http.StatusBadRequest)
 		default:
+			// 内部のロジックをさらさないようにあえて詳細は返さない
 			log.Println(err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 		return
 	}
 
-	fmt.Fprintf(w, "Actor: %+v", a)
-
-	if err := s.Service.Update(a); err != nil {
-		log.Println("failed to Update", err)
-		w.WriteHeader(http.StatusInternalServerError)
+	// 構造体のvalidation check
+	if err := a.ValidateActor(); err != nil {
+		// 内部のロジックをさらさないようにあえて詳細は返さない
+		log.Println(err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
+	if err := s.Service.Update(a); err != nil {
+		log.Println("failed to Update:", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	// fmt.Fprintf, w.Writeはw.WriteHeaderやhttp.Errorの後に呼ばないと、
+	// ステータスコード200を返してしまうので、最後に出力する
+	// 例えば、fmt.Fprintfのあとにw.WriteHeader(http.StatusInternalServerError)をしても200を返すので注意
+	fmt.Fprintf(w, "Actor name: '%s', age: '%d'", a.Name, a.Age)
 }
 
-func responseActorByJSON(ps []Actor, w http.ResponseWriter, r *http.Request) {
+func responseActorByJSON(ps []Actor, w http.ResponseWriter) {
 	jsonData, err := json.Marshal(ps)
 	if err != nil {
 		log.Println("failed to marshal", err)
@@ -104,14 +120,14 @@ func responseActorByJSON(ps []Actor, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusOK) // 省略可能
 	fmt.Fprintln(w, string(jsonData))
 }
 
 func (s *Server) Run() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/getall", s.GetALlHandler)
-	mux.HandleFunc("/search", s.SearchHandler)
+	mux.HandleFunc("/search", s.FindHandler)
 	mux.HandleFunc("/update", s.UpdateHandler) //POST
 	srv := &http.Server{
 		Addr:    "localhost:" + s.Port,

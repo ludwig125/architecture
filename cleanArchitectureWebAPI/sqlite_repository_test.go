@@ -13,12 +13,12 @@ import (
 func TestSQLite(t *testing.T) {
 	dbName := "test_sqlite_db"
 	tableName := "actor"
-	_, err := SetupTestDB(t, dbName, tableName)
+	cleanup, err := SetupTestDB(t, dbName, tableName)
 	if err != nil {
 		t.Fatalf("failed to SetupTestDB: %v", err)
 	}
 	// 以下のcleanup関数を呼ばなければローカルにテスト用DBが残る
-	// defer t.Cleanup(cleanup)
+	defer t.Cleanup(cleanup)
 
 	r, err := NewSQLiteActorRepository(dbName)
 	if err != nil {
@@ -27,47 +27,48 @@ func TestSQLite(t *testing.T) {
 
 	// テストケースをmapにすることで順序依存がないことを確認
 	tests := map[string]struct {
-		actors           []Actor
-		wantGetAll       []Actor
-		actorID          int
-		wantSearchByID   []Actor
-		actorName        string
-		wantSearchByName []Actor
-		actorAge         int
-		wantSearchByAge  []Actor
-		deleteID         int
-		wantAfterDelete  []Actor
+		actors               []Actor
+		wantGetAll           []Actor
+		actorID              int
+		wantFindByID         []Actor
+		actorName            string
+		wantFindByName       []Actor
+		actorAge             int
+		wantFindByAge        []Actor
+		wantGetAllDuplicated []Actor
+		deleteID             int
+		wantDeleteErr        bool
+		wantAfterDelete      []Actor
 	}{
-		"actors": {
+		"one_actor": {
 			actors: []Actor{
 				{Name: "Depp", Age: 54},
-				{Name: "Jackson", Age: 63},
-				{Name: "Hopkins", Age: 74},
 			},
 			wantGetAll: []Actor{
 				{ID: 1, Name: "Depp", Age: 54},
-				{ID: 2, Name: "Jackson", Age: 63},
-				{ID: 3, Name: "Hopkins", Age: 74},
 			},
-			actorID: 2,
-			wantSearchByID: []Actor{
-				{ID: 2, Name: "Jackson", Age: 63},
+			actorID: 1,
+			wantFindByID: []Actor{
+				{ID: 1, Name: "Depp", Age: 54},
 			},
-			actorName: "Hopkins",
-			wantSearchByName: []Actor{
-				{ID: 3, Name: "Hopkins", Age: 74},
+			actorName: "Depp",
+			wantFindByName: []Actor{
+				{ID: 1, Name: "Depp", Age: 54},
 			},
 			actorAge: 54,
-			wantSearchByAge: []Actor{
+			wantFindByAge: []Actor{
 				{ID: 1, Name: "Depp", Age: 54},
 			},
-			deleteID: 3,
+			wantGetAllDuplicated: []Actor{
+				{ID: 1, Name: "Depp", Age: 54},
+				{ID: 2, Name: "Depp", Age: 54},
+			},
+			deleteID: 2,
 			wantAfterDelete: []Actor{
 				{ID: 1, Name: "Depp", Age: 54},
-				{ID: 2, Name: "Jackson", Age: 63},
 			},
 		},
-		"actoress": {
+		"three_actoress": {
 			actors: []Actor{
 				{Name: "Portman", Age: 32},
 				{Name: "Knightley", Age: 36},
@@ -79,22 +80,47 @@ func TestSQLite(t *testing.T) {
 				{ID: 3, Name: "Watson", Age: 24},
 			},
 			actorID: 2,
-			wantSearchByID: []Actor{
+			wantFindByID: []Actor{
 				{ID: 2, Name: "Knightley", Age: 36},
 			},
 			actorName: "Portman",
-			wantSearchByName: []Actor{
+			wantFindByName: []Actor{
 				{ID: 1, Name: "Portman", Age: 32},
 			},
 			actorAge: 24,
-			wantSearchByAge: []Actor{
+			wantFindByAge: []Actor{
 				{ID: 3, Name: "Watson", Age: 24},
+			},
+			wantGetAllDuplicated: []Actor{
+				{ID: 1, Name: "Portman", Age: 32},
+				{ID: 2, Name: "Knightley", Age: 36},
+				{ID: 3, Name: "Watson", Age: 24},
+				{ID: 4, Name: "Portman", Age: 32},
+				{ID: 5, Name: "Knightley", Age: 36},
+				{ID: 6, Name: "Watson", Age: 24},
 			},
 			deleteID: 3,
 			wantAfterDelete: []Actor{
 				{ID: 1, Name: "Portman", Age: 32},
 				{ID: 2, Name: "Knightley", Age: 36},
+				{ID: 4, Name: "Portman", Age: 32},
+				{ID: 5, Name: "Knightley", Age: 36},
+				{ID: 6, Name: "Watson", Age: 24},
 			},
+		},
+		"no_data": {
+			actors:               []Actor{},
+			wantGetAll:           nil,
+			actorID:              1,
+			wantFindByID:         nil,
+			actorName:            "Depp",
+			wantFindByName:       nil,
+			actorAge:             54,
+			wantFindByAge:        nil,
+			wantGetAllDuplicated: nil,
+			deleteID:             2,
+			wantDeleteErr:        true, // 何も消すものがないと'no row got affected' エラーが出る
+			wantAfterDelete:      nil,
 		},
 	}
 	for name, tc := range tests {
@@ -115,46 +141,56 @@ func TestSQLite(t *testing.T) {
 					t.Errorf("got: %v, wantGetAll: %v\ndiff: %v", got, tc.wantGetAll, diff)
 				}
 			})
-			t.Run("SearchByID", func(t *testing.T) {
-				got, err := r.SearchByID(tc.actorID)
+			t.Run("FindByID", func(t *testing.T) {
+				got, err := r.FindByID(tc.actorID)
 				if err != nil {
-					t.Errorf("failed to SearchByID: %v", err)
+					t.Errorf("failed to FindByID: %v", err)
 				}
-				if diff := cmp.Diff(tc.wantSearchByID, got); diff != "" {
-					t.Errorf("got: %v, wantSearchByID: %v\ndiff: %v", got, tc.wantSearchByID, diff)
+				if diff := cmp.Diff(tc.wantFindByID, got); diff != "" {
+					t.Errorf("got: %v, wantFindByID: %v\ndiff: %v", got, tc.wantFindByID, diff)
 				}
 			})
-			t.Run("SearchByName", func(t *testing.T) {
-				got, err := r.SearchByName(tc.actorName)
+			t.Run("FindByName", func(t *testing.T) {
+				got, err := r.FindByName(tc.actorName)
 				if err != nil {
-					t.Errorf("failed to SearchByName: %v", err)
+					t.Errorf("failed to FindByName: %v", err)
 				}
-				if diff := cmp.Diff(tc.wantSearchByName, got); diff != "" {
-					t.Errorf("got: %v, wantSearchByName: %v\ndiff: %v", got, tc.wantSearchByName, diff)
+				if diff := cmp.Diff(tc.wantFindByName, got); diff != "" {
+					t.Errorf("got: %v, wantFindByName: %v\ndiff: %v", got, tc.wantFindByName, diff)
 				}
 			})
-			t.Run("SearchByAge", func(t *testing.T) {
-				got, err := r.SearchByAge(tc.actorAge)
+			t.Run("FindByAge", func(t *testing.T) {
+				got, err := r.FindByAge(tc.actorAge)
 				if err != nil {
-					t.Errorf("failed to SearchByAge: %v", err)
+					t.Errorf("failed to FindByAge: %v", err)
 				}
-				if diff := cmp.Diff(tc.wantSearchByAge, got); diff != "" {
-					t.Errorf("got: %v, wantSearchByAge: %v\ndiff: %v", got, tc.wantSearchByAge, diff)
+				if diff := cmp.Diff(tc.wantFindByAge, got); diff != "" {
+					t.Errorf("got: %v, wantFindByAge: %v\ndiff: %v", got, tc.wantFindByAge, diff)
 				}
 			})
-			t.Run("SearchByAge", func(t *testing.T) {
-				got, err := r.SearchByAge(tc.actorAge)
-				if err != nil {
-					t.Errorf("failed to SearchByAge: %v", err)
+			t.Run("Update_same", func(t *testing.T) {
+				// 同じデータを入れると別のIDで入ってしまうことを確認
+				// 重複の判定はrepositoryではしない
+				for _, a := range tc.actors {
+					if err := r.Update(a); err != nil {
+						t.Fatalf("failed to Update: %v", err)
+					}
 				}
-				if diff := cmp.Diff(tc.wantSearchByAge, got); diff != "" {
-					t.Errorf("got: %v, wantSearchByAge: %v\ndiff: %v", got, tc.wantSearchByAge, diff)
+				got, err := r.GetAll()
+				if err != nil {
+					t.Errorf("failed to GetAll: %v", err)
+				}
+				if diff := cmp.Diff(tc.wantGetAllDuplicated, got); diff != "" {
+					t.Errorf("got: %v, wantGetAllDuplicated: %v\ndiff: %v", got, tc.wantGetAllDuplicated, diff)
 				}
 			})
 			t.Run("DeleteByID", func(t *testing.T) {
 				// 一件消す
 				if err := r.DeleteByID(tc.deleteID); err != nil {
-					t.Errorf("failed to DeleteByID: %v", err)
+					if !tc.wantDeleteErr {
+						t.Log(err)
+						t.Errorf("failed to DeleteByID: %v", err)
+					}
 				}
 				got, err := r.GetAll()
 				if err != nil {
@@ -215,7 +251,7 @@ func SetupTestDB(t *testing.T, dbName, tableName string) (func(), error) {
 
 	// cleanupTestDB関数を返す
 	return func() {
-		if err := cleanupTestDB(t, db, dbName); err != nil {
+		if err := cleanupTestDB(t, dbName); err != nil {
 			t.Fatalf("failed to cleanupTestDB: %v", err)
 		}
 	}, nil
@@ -228,7 +264,7 @@ func createTestDB(t *testing.T, dbName string) (*os.File, error) {
 }
 
 // test用Databaseの削除
-func cleanupTestDB(t *testing.T, db *sql.DB, dbName string) error {
+func cleanupTestDB(t *testing.T, dbName string) error {
 	t.Helper()
 	return os.Remove(dbName)
 }

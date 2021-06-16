@@ -12,6 +12,8 @@ $sqlite3 -version
 
 #### db作成
 
+注：cleanArchitectureWebAPIディレクトリ直下で行う
+
 ```
 sqlite3 arch_db
 ```
@@ -22,7 +24,7 @@ $sqlite3 arch_db
 SQLite version 3.31.1 2020-01-27 19:55:54
 Enter ".help" for usage hints.
 sqlite> .databases
-main: /home/ludwig125/go/src/github.com/ludwig125/architecture/arch_db
+main: /home/ludwig125/go/src/github.com/ludwig125/architecture/cleanArchitectureWebAPI/arch_db
 sqlite>
 ```
 
@@ -64,6 +66,9 @@ dbとtableの作成とデータのInsertは以下のように一気にするこ�
 
 ```
 sqlite3 arch_db 'CREATE TABLE actor(id INTEGER PRIMARY KEY ASC, name TEXT, age INTEGER);'
-sqlite3 arch_db 'INSERT INTO actor (name, age) VALUES ("drew", 35);'
-sqlite3 arch_db 'INSERT INTO actor (name, age) VALUES ("jane", 29);'
+sqlite3 arch_db 'INSERT INTO actor(name, age) VALUES("Portman", 32);'
+sqlite3 arch_db 'INSERT INTO actor(name, age) values("Knightley", 35);'
+sqlite3 arch_db 'INSERT INTO actor(name, age) values("Hopkins", 56);'
+sqlite3 arch_db 'INSERT INTO actor(name, age) values("Depp", 54);'
+sqlite3 arch_db 'INSERT INTO actor(name, age) values("Watson", 24);'
 ```

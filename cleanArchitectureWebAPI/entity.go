@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 )
@@ -13,14 +12,7 @@ type Actor struct {
 	Age  int    `json:"age"`
 }
 
-// RequestCond is request condition to search actor.
-type RequestCond struct {
-	ID   int
-	Name string
-	Age  int
-}
-
-func NewRequestCond(id, name, age string) (*RequestCond, error) {
+func NewRequestCond(id, name, age string) (*Actor, error) {
 	// 同時に複数パラメータを指定するとエラーにする
 	multiErr := fmt.Errorf("multiple variables. id: %s, name: %s, age: %s, choose one variable", id, name, age)
 
@@ -34,7 +26,7 @@ func NewRequestCond(id, name, age string) (*RequestCond, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert id '%s' to int", id)
 		}
-		return &RequestCond{
+		return &Actor{
 			ID:   iID,
 			Name: "",
 			Age:  0,
@@ -44,7 +36,7 @@ func NewRequestCond(id, name, age string) (*RequestCond, error) {
 			return nil, multiErr
 		}
 
-		return &RequestCond{
+		return &Actor{
 			ID:   0,
 			Name: name,
 			Age:  0,
@@ -58,12 +50,22 @@ func NewRequestCond(id, name, age string) (*RequestCond, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert age '%s' to int", age)
 		}
-		return &RequestCond{
+		return &Actor{
 			ID:   0,
 			Name: "",
 			Age:  iAge,
 		}, nil
 	default:
-		return nil, errors.New("invalid")
+		return nil, fmt.Errorf("invalid request. id: '%s', name: '%s', age: '%s'", id, name, age)
 	}
+}
+
+func (a Actor) ValidateActor() error {
+	if a.Name == "" {
+		return fmt.Errorf("Name should not be empty. '%#v'", a)
+	}
+	if a.Age == 0 {
+		return fmt.Errorf("Age should not be zero. '%#v'", a)
+	}
+	return nil
 }
