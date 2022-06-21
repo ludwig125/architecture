@@ -9,7 +9,7 @@ type ActorService interface {
 	GetAll() ([]Actor, error)
 	Find(Actor) ([]Actor, error)
 	Update(Actor) error
-	DeleteByID(int) error
+	DeleteByID(int) (Actor, error)
 	// Excluded() ([]string, error)
 }
 
@@ -91,8 +91,20 @@ func (s *actorService) Update(a Actor) error {
 	return s.repository.Update(a)
 }
 
-func (s *actorService) DeleteByID(id int) error {
-	return s.repository.DeleteByID(id)
+func (s *actorService) DeleteByID(id int) (Actor, error) {
+	var a Actor
+	as, err := s.repository.FindByID(id)
+	if err != nil {
+		return a, fmt.Errorf("failed to search: %v", err)
+	}
+	if len(as) == 0 {
+		return a, fmt.Errorf("did not meet the conditions id: %d", id)
+	}
+	if len(as) != 1 {
+		return a, fmt.Errorf("get multiple Actors: %v, id: %d", as, id)
+	}
+	a = as[0]
+	return a, s.repository.DeleteByID(id)
 }
 
 func fileterActors(as []Actor, es []string) []Actor {

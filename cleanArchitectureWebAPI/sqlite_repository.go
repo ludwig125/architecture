@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
+	"os"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -17,15 +19,30 @@ type sqliteRepository struct {
 var _ ActorRepository = (*sqliteRepository)(nil)
 
 func NewSQLiteActorRepository(dbName string) (ActorRepository, error) {
+	// 対象のDBがなくても新規に作ってしまうようなので、DBファイルの存在確認する
+	if !exists(dbName) {
+		return nil, fmt.Errorf("no such db file: %s", dbName)
+	}
+
 	db, err := connSQLite(dbName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connection db: %v", err)
 	}
+	log.Printf("connected %s successfully", dbName)
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping db: %v", err)
 	}
-
+	log.Printf("ping %s successfully", dbName)
 	return &sqliteRepository{db: db}, nil
+}
+
+func exists(name string) bool {
+	if _, err := os.Stat(name); err != nil {
+		if os.IsNotExist(err) {
+			return false
+		}
+	}
+	return true
 }
 
 func connSQLite(dbName string) (*sql.DB, error) {

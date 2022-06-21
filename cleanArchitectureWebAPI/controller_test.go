@@ -242,7 +242,7 @@ func TestUpdateHandler(t *testing.T) {
 		"update_ok": {
 			method:      "POST",
 			contentType: "application/json",
-			req: makeJSONBytes(t, &Actor{
+			req: decodeActor(t, &Actor{
 				Name: "Watson",
 				Age:  24,
 			}),
@@ -260,7 +260,7 @@ func TestUpdateHandler(t *testing.T) {
 			method:      "POST",
 			contentType: "text/plain",
 			wantCode:    400,
-			wantErr:     "POST request must be JSON\n",
+			wantErr:     "POST request must be JSON. check Content-Type\n",
 		},
 		"bad_json": { // nameがstringではなくint
 			method:      "POST",
@@ -294,7 +294,7 @@ func TestUpdateHandler(t *testing.T) {
 		"update_error": {
 			method:      "POST",
 			contentType: "application/json",
-			req: makeJSONBytes(t, &Actor{
+			req: decodeActor(t, &Actor{
 				Name: "Watson",
 				Age:  24,
 			}),
@@ -335,7 +335,68 @@ func TestUpdateHandler(t *testing.T) {
 	}
 }
 
-func makeJSONBytes(t *testing.T, a *Actor) []byte {
+func TestDeleteHandler(t *testing.T) {
+	service := &mockService{}
+
+	tests := map[string]struct {
+		method         string
+		contentType    string
+		req            []byte
+		mockDeleteFunc func() (Actor, error)
+		wantCode       int
+		wantErr        string
+	}{
+		"delete_ok": {
+			method:      "POST",
+			contentType: "application/json",
+			req:         []byte("id=1"),
+			mockDeleteFunc: func() (Actor, error) {
+				return Actor{}, nil
+			},
+			wantCode: 200,
+		},
+		"delete_error": {
+			method:      "POST",
+			contentType: "application/json",
+			req:         []byte("id=1"),
+			mockDeleteFunc: func() (Actor, error) {
+				return Actor{}, errors.New("error occurred in Delete")
+			},
+			wantCode: 500,
+			wantErr:  "Internal Server Error\n",
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, "/delete", bytes.NewBuffer(tc.req))
+			resp := httptest.NewRecorder()
+
+			if tc.contentType != "" {
+				req.Header.Set("Content-Type", tc.contentType)
+			}
+			service.mockDeleteByIDFunc = tc.mockDeleteFunc
+			router := NewServer(Config{}, service)
+			router.DeleteHandler(resp, req)
+
+			res, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if resp.Code != tc.wantCode {
+				t.Errorf("gotCode: %d, wantCode: %d", resp.Code, tc.wantCode)
+			}
+			if resp.Code != http.StatusOK {
+				if string(res) != tc.wantErr {
+					t.Errorf("gotErr: %s, wantErr: %s", string(res), tc.wantErr)
+				}
+				return
+			}
+		})
+	}
+}
+
+func decodeActor(t *testing.T, a *Actor) []byte {
 	s, err := json.Marshal(a)
 	if err != nil {
 		t.Fatalf("failed to json Marshal: %v", err)

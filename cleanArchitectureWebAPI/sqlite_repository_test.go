@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestSQLite(t *testing.T) {
-	dbName := "test_sqlite_db"
+func TestActorRepository(t *testing.T) {
+	dbName := "unittest_sqlite_db"
 	tableName := "actor"
 	cleanup, err := SetupTestDB(t, dbName, tableName)
 	if err != nil {
@@ -226,6 +227,9 @@ func SetupTestDB(t *testing.T, dbName, tableName string) (func(), error) {
 	if dbName == "" {
 		return nil, errors.New("dbName is not set")
 	}
+	if !strings.Contains(dbName, "test") { // 万が一にも本番用DBをいじらないようにtestという文字があるか確認
+		return nil, errors.New("test dbName must have 'test' phrase in name")
+	}
 	if tableName == "" {
 		return nil, errors.New("tableName is not set")
 	}
@@ -237,7 +241,7 @@ func SetupTestDB(t *testing.T, dbName, tableName string) (func(), error) {
 		return nil, fmt.Errorf("failed to createTestDB: %v", err)
 	}
 	defer f.Close()
-	t.Logf("created test table '%s' successfully", tableName)
+	t.Logf("created test database '%s' successfully", dbName)
 
 	db, err := connSQLite(dbName)
 	if err != nil {
@@ -248,12 +252,14 @@ func SetupTestDB(t *testing.T, dbName, tableName string) (func(), error) {
 	if err := createTestTable(t, db, tableName); err != nil {
 		return nil, fmt.Errorf("failed to createTestTable: %v", err)
 	}
+	t.Logf("created test table '%s' successfully", tableName)
 
 	// cleanupTestDB関数を返す
 	return func() {
 		if err := cleanupTestDB(t, dbName); err != nil {
 			t.Fatalf("failed to cleanupTestDB: %v", err)
 		}
+		t.Logf("cleanup test database '%s' successfully", dbName)
 	}, nil
 }
 

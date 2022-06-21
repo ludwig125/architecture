@@ -253,11 +253,15 @@ func TestService(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		tests := map[string]struct {
+			mockFindByIDFunc   func(int) ([]Actor, error)
 			mockDeleteByIDFunc func() error
 			deleteID           int
 			wantErr            string
 		}{
 			"delete_exist_record": {
+				mockFindByIDFunc: func(int) ([]Actor,error) {
+					return []Actor{{ID Name: }},nil
+				},
 				mockDeleteByIDFunc: func() error {
 					return nil
 				},
@@ -273,15 +277,19 @@ func TestService(t *testing.T) {
 		}
 		for name, tc := range tests {
 			t.Run(name, func(t *testing.T) {
+				mockSQLiteRep.mockFindByIDFunc = tc.mockFindByIDFunc
 				mockSQLiteRep.mockDeleteByIDFunc = tc.mockDeleteByIDFunc
 				mockExcludeRep.mockExcludedFunc = func() ([]string, error) { return nil, nil }
 
 				service := NewActorService(Config{}, mockSQLiteRep, mockExcludeRep)
-				if err := service.DeleteByID(tc.deleteID); err != nil {
+				a, err := service.DeleteByID(tc.deleteID)
+				if err != nil {
 					if err.Error() != tc.wantErr {
 						t.Errorf("gotErr: %v, wantErr: %v", err.Error(), tc.wantErr)
 					}
+					return
 				}
+
 			})
 		}
 	})

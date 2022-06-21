@@ -8,7 +8,7 @@ type mockService struct {
 	mockGetAllFunc     func() ([]Actor, error)
 	mockFindFunc       func() ([]Actor, error)
 	mockUpdateFunc     func() error
-	mockDeleteByIDFunc func() error
+	mockDeleteByIDFunc func() (Actor, error)
 }
 
 // interfaceを実装しているか保証する
@@ -105,7 +105,7 @@ func (r *mockService) Update(a Actor) error {
 	return r.mockUpdateFunc()
 }
 
-func (r *mockService) DeleteByID(id int) error {
+func (r *mockService) DeleteByID(id int) (Actor, error) {
 	// 	q := "DELETE FROM actor WHERE id = $1;"
 	// 	res, err := r.db.Exec(q, id)
 	// 	if err != nil {

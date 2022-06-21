@@ -10,12 +10,12 @@ import (
 )
 
 func TestFile(t *testing.T) {
-	fileName := "test_file"
+	fileName := "unittest_file"
 	cleanup, err := SetupTestFile(t, fileName)
 	if err != nil {
 		t.Fatalf("failed to SetupTestFile: %v", err)
 	}
-	// 以下のcleanup関数を呼ばなければローカルにテスト用DBが残る
+	// 以下のcleanup関数を呼ばなければローカルにテスト用ファイルが残る
 	defer t.Cleanup(cleanup)
 
 	t.Run("invalid_file", func(t *testing.T) {
